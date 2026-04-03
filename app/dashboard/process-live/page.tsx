@@ -6,10 +6,15 @@ import {
 	Activity,
 	CheckCircle2,
 	Circle,
+	FileText,
 	FileUp,
 	Loader2,
+	Shield,
 	Sparkles,
+	Wallet,
 	XCircle,
+	GitCompare,
+	Settings2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,12 +33,16 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	getDocumentResult,
 	getDocumentStatus,
 	uploadDocument,
 	type DocumentResultResponse,
 } from "@/lib/documents";
+import { parseApiErrorText } from "@/lib/api-errors";
 import {
 	LIVE_PIPELINE_STEPS,
 	resolveLivePipelineStep,
@@ -132,6 +141,16 @@ function StepRow({
 	);
 }
 
+function JsonScroll({ data }: { data: unknown }) {
+	return (
+		<ScrollArea className="h-48 w-full rounded-md border bg-muted/40">
+			<pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all">
+				{JSON.stringify(data, null, 2)}
+			</pre>
+		</ScrollArea>
+	);
+}
+
 function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 	const aa = result.agent_analysis;
 	const parsed = tryParseAgentStructured(
@@ -142,189 +161,295 @@ function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 	const workflow = result.operations_workflow;
 	const ext = result.extracted_data;
 
+	const dup = verification?.duplicate_check?.is_duplicate;
+	const warnings = verification?.authenticity?.warnings ?? [];
+	const matchStatus = matching?.match_result?.match_status;
+	const variances = matching?.match_result?.variances;
+	const vCount = Array.isArray(variances) ? variances.length : 0;
+	const approval = workflow?.approval_summary?.status;
+	const exception = workflow?.exception;
+
+	const totalFmt =
+		ext?.total != null
+			? new Intl.NumberFormat("en-IN", {
+					style: "currency",
+					currency: "INR",
+					maximumFractionDigits: 2,
+				}).format(Number(ext.total))
+			: "—";
+
+	const paymentHint =
+		approval === "approved" && ext?.total != null && Number(ext.total) > 0 && !exception
+			? "Eligible for Payments Hub"
+			: exception
+				? "Blocked — review exception"
+				: approval === "pending"
+					? "Awaiting approval"
+					: "See Payments Hub for status";
+
 	return (
 		<div className="space-y-4">
-			<Card className="border-violet-500/30 bg-violet-500/5">
-				<CardHeader>
-					<CardTitle className="flex items-center gap-2 text-lg">
-						<Sparkles className="h-5 w-5 text-violet-600" />
-						Swarms / agent analysis
-					</CardTitle>
-					<CardDescription>
-						In-depth model output when GROQ (or configured) keys are present and the
-						step succeeds.
-					</CardDescription>
+			<Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+				<CardHeader className="pb-2">
+					<CardTitle className="text-lg">Overview</CardTitle>
+					<CardDescription>Key fields and payment readiness</CardDescription>
 				</CardHeader>
-				<CardContent className="space-y-3 text-sm">
-					{aa ? (
-						<>
-							<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-								{aa.model != null && (
-									<span>
-										Model:{" "}
-										<span className="font-mono text-foreground">
-											{String(aa.model)}
-										</span>
-									</span>
-								)}
-								{aa.context != null && (
-									<span>
-										Context:{" "}
-										<span className="text-foreground">{String(aa.context)}</span>
-									</span>
-								)}
-								{aa.execution_time != null && (
-									<span>
-										Runtime:{" "}
-										{Number(aa.execution_time).toFixed(2)}s
-									</span>
-								)}
-							</div>
-							{(parsed.summary ||
-								parsed.flags?.length ||
-								parsed.recommendations?.length) && (
-								<div className="rounded-md border bg-background/80 p-3 space-y-2">
-									{parsed.summary && (
-										<p>
-											<span className="font-medium text-foreground">Summary: </span>
-											{parsed.summary}
-										</p>
-									)}
-									{parsed.flags && parsed.flags.length > 0 && (
-										<p>
-											<span className="font-medium text-foreground">Flags: </span>
-											{parsed.flags.join(", ")}
-										</p>
-									)}
-									{parsed.recommendations &&
-										parsed.recommendations.length > 0 && (
-											<ul className="list-disc list-inside space-y-1">
-												{parsed.recommendations.map((r, i) => (
-													<li key={i}>{r}</li>
-												))}
-											</ul>
-										)}
-								</div>
+				<CardContent className="space-y-4">
+					<div className="grid gap-4 sm:grid-cols-2">
+						<div>
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								Total
+							</p>
+							<p className="text-3xl font-bold tabular-nums text-foreground">{totalFmt}</p>
+						</div>
+						<div className="flex flex-wrap gap-2 items-start">
+							{approval && (
+								<Badge variant={approval === "approved" ? "default" : approval === "rejected" ? "destructive" : "secondary"}>
+									Approval: {approval}
+								</Badge>
 							)}
-							{aa.result != null &&
-								!(
-									parsed.summary ||
-									parsed.flags?.length ||
-									parsed.recommendations?.length
-								) && (
-									<pre className="max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
-										{String(aa.result)}
-									</pre>
+							{matchStatus != null && (
+								<Badge variant="outline">Match: {String(matchStatus)}</Badge>
+							)}
+							{dup != null && (
+								<Badge variant={dup ? "destructive" : "outline"}>
+									{dup ? "Duplicate suspected" : "Not duplicate"}
+								</Badge>
+							)}
+						</div>
+					</div>
+					<dl className="grid gap-2 text-sm sm:grid-cols-2">
+						<div className="flex justify-between gap-2 border-b border-border/60 py-1">
+							<dt className="text-muted-foreground">Vendor</dt>
+							<dd className="font-medium text-right truncate max-w-[60%]">
+								{ext?.supplier != null ? String(ext.supplier) : "—"}
+							</dd>
+						</div>
+						<div className="flex justify-between gap-2 border-b border-border/60 py-1">
+							<dt className="text-muted-foreground">Invoice #</dt>
+							<dd className="font-medium text-right">{ext?.invoice_number != null ? String(ext.invoice_number) : "—"}</dd>
+						</div>
+					</dl>
+					<Alert>
+						<Wallet className="h-4 w-4" />
+						<AlertTitle>Payments</AlertTitle>
+						<AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+							<span>{paymentHint}</span>
+							<Button size="sm" variant="secondary" asChild>
+								<Link href="/dashboard/payments">Open Payments Hub</Link>
+							</Button>
+						</AlertDescription>
+					</Alert>
+				</CardContent>
+			</Card>
+
+			<Tabs defaultValue="verification" className="w-full">
+				<TabsList className="flex flex-wrap h-auto gap-1 justify-start">
+					<TabsTrigger value="verification" className="gap-1">
+						<Shield className="h-3.5 w-3.5" />
+						Verification
+					</TabsTrigger>
+					<TabsTrigger value="matching" className="gap-1">
+						<GitCompare className="h-3.5 w-3.5" />
+						Matching
+					</TabsTrigger>
+					<TabsTrigger value="workflow" className="gap-1">
+						<Settings2 className="h-3.5 w-3.5" />
+						Workflow
+					</TabsTrigger>
+					<TabsTrigger value="extraction" className="gap-1">
+						<FileText className="h-3.5 w-3.5" />
+						Extraction
+					</TabsTrigger>
+					<TabsTrigger value="agent" className="gap-1">
+						<Sparkles className="h-3.5 w-3.5" />
+						Agent
+					</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="verification" className="mt-4 space-y-3">
+					{verification ? (
+						<>
+							<ul className="text-sm space-y-2 text-foreground">
+								<li className="flex flex-wrap gap-2 items-center">
+									<span className="text-muted-foreground">Duplicate check:</span>
+									<Badge variant={dup ? "destructive" : "secondary"}>
+										{dup ? "Possible duplicate" : "OK"}
+									</Badge>
+								</li>
+								{warnings.length > 0 && (
+									<li>
+										<span className="text-muted-foreground">Warnings:</span>
+										<ul className="list-disc pl-5 mt-1">
+											{warnings.map((w, i) => (
+												<li key={i}>{String(w)}</li>
+											))}
+										</ul>
+									</li>
 								)}
-							<Accordion type="single" collapsible className="w-full">
-								<AccordionItem value="raw">
-									<AccordionTrigger className="text-sm py-2">
-										Raw agent payload (JSON)
-									</AccordionTrigger>
+							</ul>
+							<Accordion type="single" collapsible className="border rounded-lg px-3">
+								<AccordionItem value="adv" className="border-0">
+									<AccordionTrigger className="text-sm py-2">Advanced — raw JSON</AccordionTrigger>
 									<AccordionContent>
-										<pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-											{JSON.stringify(aa, null, 2)}
-										</pre>
+										<JsonScroll data={verification} />
 									</AccordionContent>
 								</AccordionItem>
 							</Accordion>
 						</>
 					) : (
-						<p className="text-muted-foreground">
-							No agent analysis for this run (keys missing, step skipped, or error).
-							Check backend logs and <code className="text-xs">GROQ_API_KEY</code>.
-						</p>
+						<p className="text-sm text-muted-foreground">No verification data for this run.</p>
 					)}
-				</CardContent>
-			</Card>
+				</TabsContent>
 
-			<Accordion type="multiple" className="w-full space-y-2">
-				<AccordionItem value="verify" className="border rounded-lg px-3">
-					<AccordionTrigger className="text-sm font-medium hover:no-underline">
-						Verification and compliance
-					</AccordionTrigger>
-					<AccordionContent className="text-sm text-muted-foreground space-y-2 pb-4">
-						{verification ? (
-							<pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-								{JSON.stringify(verification, null, 2)}
-							</pre>
-						) : (
-							<p>Not available.</p>
-						)}
-					</AccordionContent>
-				</AccordionItem>
-				<AccordionItem value="match" className="border rounded-lg px-3">
-					<AccordionTrigger className="text-sm font-medium hover:no-underline">
-						Matching and ERP
-					</AccordionTrigger>
-					<AccordionContent className="text-sm text-muted-foreground space-y-2 pb-4">
-						{matching ? (
-							<pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-								{JSON.stringify(matching, null, 2)}
-							</pre>
-						) : (
-							<p>Not available.</p>
-						)}
-					</AccordionContent>
-				</AccordionItem>
-				<AccordionItem value="workflow" className="border rounded-lg px-3">
-					<AccordionTrigger className="text-sm font-medium hover:no-underline">
-						Operations workflow
-					</AccordionTrigger>
-					<AccordionContent className="text-sm text-muted-foreground space-y-2 pb-4">
-						{workflow ? (
-							<pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-								{JSON.stringify(workflow, null, 2)}
-							</pre>
-						) : (
-							<p>Not available.</p>
-						)}
-					</AccordionContent>
-				</AccordionItem>
-				<AccordionItem value="extracted" className="border rounded-lg px-3">
-					<AccordionTrigger className="text-sm font-medium hover:no-underline">
-						Extracted fields (summary)
-					</AccordionTrigger>
-					<AccordionContent className="text-sm text-muted-foreground space-y-2 pb-4">
-						{ext ? (
-							<ul className="space-y-1 text-foreground">
-								{ext.supplier != null && (
-									<li>
-										<span className="font-medium">Vendor: </span>
-										{String(ext.supplier)}
+				<TabsContent value="matching" className="mt-4 space-y-3">
+					{matching ? (
+						<>
+							<div className="flex flex-wrap gap-2 items-center text-sm">
+								<span className="text-muted-foreground">Status</span>
+								<Badge variant="outline">{matchStatus != null ? String(matchStatus) : "unknown"}</Badge>
+								{vCount > 0 && (
+									<Badge variant="secondary">{vCount} variance(s)</Badge>
+								)}
+							</div>
+							<Accordion type="single" collapsible className="border rounded-lg px-3">
+								<AccordionItem value="madv" className="border-0">
+									<AccordionTrigger className="text-sm py-2">Advanced — raw JSON</AccordionTrigger>
+									<AccordionContent>
+										<JsonScroll data={matching} />
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
+						</>
+					) : (
+						<p className="text-sm text-muted-foreground">No matching / ERP block.</p>
+					)}
+				</TabsContent>
+
+				<TabsContent value="workflow" className="mt-4 space-y-3">
+					{workflow ? (
+						<>
+							<ul className="text-sm space-y-2">
+								{exception && (
+									<li className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+										<p className="font-medium text-foreground">Exception</p>
+										<p className="text-muted-foreground mt-1">
+											{String(exception.exception_type ?? "")} — {String(exception.queue_name ?? "")}
+										</p>
+										{exception.reason && (
+											<p className="text-xs mt-2 text-muted-foreground">{String(exception.reason)}</p>
+										)}
 									</li>
 								)}
-								{ext.invoice_number != null && (
-									<li>
-										<span className="font-medium">Invoice #: </span>
-										{String(ext.invoice_number)}
-									</li>
-								)}
-								{ext.date != null && (
-									<li>
-										<span className="font-medium">Date: </span>
-										{String(ext.date)}
-									</li>
-								)}
-								{ext.total != null && (
-									<li>
-										<span className="font-medium">Total: </span>
-										{String(ext.total)}
+								{workflow.approval_summary && (
+									<li className="flex flex-wrap gap-2">
+										<span className="text-muted-foreground">Approval:</span>
+										<Badge>{String(workflow.approval_summary.status ?? "—")}</Badge>
+										{workflow.approval_summary.due_at && (
+											<span className="text-xs text-muted-foreground">
+												Due {String(workflow.approval_summary.due_at)}
+											</span>
+										)}
 									</li>
 								)}
 							</ul>
-						) : (
-							<p>No extracted data.</p>
-						)}
-					</AccordionContent>
-				</AccordionItem>
-			</Accordion>
+							<Accordion type="single" collapsible className="border rounded-lg px-3">
+								<AccordionItem value="wadv" className="border-0">
+									<AccordionTrigger className="text-sm py-2">Advanced — raw JSON</AccordionTrigger>
+									<AccordionContent>
+										<JsonScroll data={workflow} />
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
+						</>
+					) : (
+						<p className="text-sm text-muted-foreground">No workflow block.</p>
+					)}
+				</TabsContent>
+
+				<TabsContent value="extraction" className="mt-4 space-y-3">
+					{ext ? (
+						<>
+							<ul className="space-y-2 text-sm text-foreground">
+								{["supplier", "invoice_number", "date", "due_date", "currency", "total", "tax", "subtotal"].map((k) => {
+									const v = (ext as Record<string, unknown>)[k];
+									if (v == null || v === "") return null;
+									return (
+										<li key={k} className="flex justify-between gap-4 border-b border-border/50 py-1">
+											<span className="text-muted-foreground capitalize">{k.replace(/_/g, " ")}</span>
+											<span className="font-medium text-right break-all">{String(v)}</span>
+										</li>
+									);
+								})}
+							</ul>
+							<Accordion type="single" collapsible className="border rounded-lg px-3">
+								<AccordionItem value="eadv" className="border-0">
+									<AccordionTrigger className="text-sm py-2">Advanced — full extracted JSON</AccordionTrigger>
+									<AccordionContent>
+										<JsonScroll data={ext} />
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
+						</>
+					) : (
+						<p className="text-sm text-muted-foreground">No extracted data.</p>
+					)}
+				</TabsContent>
+
+				<TabsContent value="agent" className="mt-4 space-y-3">
+					{aa ? (
+						<>
+							<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+								{aa.model != null && (
+									<span>
+										Model: <span className="font-mono text-foreground">{String(aa.model)}</span>
+									</span>
+								)}
+								{aa.execution_time != null && (
+									<span>Runtime: {Number(aa.execution_time).toFixed(2)}s</span>
+								)}
+							</div>
+							{(parsed.summary || parsed.flags?.length || parsed.recommendations?.length) && (
+								<div className="rounded-md border bg-muted/40 p-4 space-y-2 text-sm">
+									{parsed.summary && <p><span className="font-medium">Summary: </span>{parsed.summary}</p>}
+									{parsed.flags && parsed.flags.length > 0 && (
+										<p><span className="font-medium">Flags: </span>{parsed.flags.join(", ")}</p>
+									)}
+									{parsed.recommendations && parsed.recommendations.length > 0 && (
+										<ul className="list-disc list-inside">
+											{parsed.recommendations.map((r, i) => (
+												<li key={i}>{r}</li>
+											))}
+										</ul>
+									)}
+								</div>
+							)}
+							{aa.result != null &&
+								!(parsed.summary || parsed.flags?.length || parsed.recommendations?.length) && (
+									<ScrollArea className="h-40 rounded-md border bg-muted/40">
+										<pre className="p-3 text-xs whitespace-pre-wrap">{String(aa.result)}</pre>
+									</ScrollArea>
+								)}
+							<Accordion type="single" collapsible className="border rounded-lg px-3">
+								<AccordionItem value="araw" className="border-0">
+									<AccordionTrigger className="text-sm py-2">Advanced — raw agent payload</AccordionTrigger>
+									<AccordionContent>
+										<JsonScroll data={aa} />
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
+						</>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							No agent analysis. Ensure <code className="text-xs">GROQ_API_KEY</code> is set on the backend.
+						</p>
+					)}
+				</TabsContent>
+			</Tabs>
 
 			<div className="flex flex-wrap gap-2">
 				<Button variant="outline" size="sm" asChild>
-					<Link href={`/dashboard/invoices/${result.job_id}`}>
-						Open full invoice page
-					</Link>
+					<Link href={`/dashboard/invoices/${result.job_id}`}>Open invoice</Link>
 				</Button>
 				<Button variant="outline" size="sm" asChild>
 					<Link href="/dashboard/invoices">All invoices</Link>
@@ -342,6 +467,7 @@ export default function ProcessLivePage() {
 	const [result, setResult] = useState<DocumentResultResponse | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [uploading, setUploading] = useState(false);
+	const [progressLog, setProgressLog] = useState<string[]>([]);
 
 	const activeStep = resolveLivePipelineStep(progress, status);
 	const failed = status === "failed";
@@ -353,8 +479,14 @@ export default function ProcessLivePage() {
 		const st = await getDocumentStatus(id);
 		setStatus(st.status);
 		setProgress(st.progress);
+		if (st.progress) {
+			const line = st.progress;
+			setProgressLog((prev) =>
+				prev[prev.length - 1] === line ? prev : [...prev, line],
+			);
+		}
 		if (st.status === "failed") {
-			setError(st.error ?? "Processing failed");
+			setError(parseApiErrorText(st.error ?? "Processing failed"));
 			return "failed" as const;
 		}
 		if (st.status === "completed") {
@@ -381,7 +513,8 @@ export default function ProcessLivePage() {
 				}
 			} catch (e) {
 				if (!cancelled) {
-					setError(e instanceof Error ? e.message : "Poll failed");
+					const msg = e instanceof Error ? e.message : "Poll failed";
+					setError(parseApiErrorText(msg));
 					setStatus("failed");
 					if (timer) clearInterval(timer);
 				}
@@ -403,6 +536,7 @@ export default function ProcessLivePage() {
 		setProgress(undefined);
 		setResult(null);
 		setError(null);
+		setProgressLog([]);
 		if (fileRef.current) fileRef.current.value = "";
 	};
 
@@ -420,9 +554,11 @@ export default function ProcessLivePage() {
 			const res = await uploadDocument(file);
 			setJobId(res.job_id);
 			setStatus(res.status);
-			setProgress("Upload received, starting…");
+			const first = "Upload received, starting…";
+			setProgress(first);
+			setProgressLog([first]);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Upload failed");
+			setError(parseApiErrorText(err instanceof Error ? err.message : "Upload failed"));
 		} finally {
 			setUploading(false);
 			e.target.value = "";
@@ -430,16 +566,16 @@ export default function ProcessLivePage() {
 	};
 
 	return (
-		<div className="mx-auto max-w-4xl space-y-8">
+		<div className="mx-auto max-w-6xl space-y-8">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
 						<Activity className="h-8 w-8 text-primary" />
 						Live pipeline
 					</h1>
-					<p className="mt-2 text-muted-foreground max-w-xl">
-						Upload one invoice and watch each backend stage advance in real time.
-						When finished, Swarms output and full JSON insights appear below.
+					<p className="mt-2 text-muted-foreground max-w-2xl">
+						Upload one invoice and watch stages advance. When finished, use the overview and tabs
+						for verification, matching, workflow, and extraction — raw JSON stays under Advanced.
 					</p>
 				</div>
 				<div className="flex flex-wrap gap-2 shrink-0">
@@ -470,10 +606,11 @@ export default function ProcessLivePage() {
 			</div>
 
 			{error && !jobId && (
-				<p className="text-sm text-destructive flex items-center gap-2">
-					<XCircle className="h-4 w-4 shrink-0" />
-					{error}
-				</p>
+				<Alert variant="destructive">
+					<XCircle className="h-4 w-4" />
+					<AlertTitle>Upload failed</AlertTitle>
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			)}
 
 			{jobId && (
@@ -516,6 +653,28 @@ export default function ProcessLivePage() {
 
 								<Separator />
 
+								{progressLog.length > 0 && (
+									<>
+										<Separator />
+										<div>
+											<p className="text-xs font-medium text-muted-foreground mb-2">
+												Activity log
+											</p>
+											<ScrollArea className="h-36 rounded-md border bg-muted/30">
+												<ol className="p-3 space-y-2 text-xs text-muted-foreground list-decimal pl-4">
+													{progressLog.map((line, i) => (
+														<li key={`${i}-${line.slice(0, 24)}`} className="pl-1">
+															{line}
+														</li>
+													))}
+												</ol>
+											</ScrollArea>
+										</div>
+									</>
+								)}
+
+								<Separator />
+
 								<div className="space-y-0">
 									{LIVE_PIPELINE_STEPS.map((step, i) => {
 										const lastIndex = LIVE_PIPELINE_STEPS.length - 1;
@@ -550,12 +709,12 @@ export default function ProcessLivePage() {
 			)}
 
 			{completed && result && (
-				<>
-					<h2 className="text-xl font-semibold text-foreground">
-						Full insights
-					</h2>
-					<InsightsPanel result={result} />
-				</>
+				<div className="space-y-4">
+					<h2 className="text-xl font-semibold text-foreground">Pipeline insights</h2>
+					<div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)]">
+						<InsightsPanel result={result} />
+					</div>
+				</div>
 			)}
 		</div>
 	);

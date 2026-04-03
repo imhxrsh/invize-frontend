@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAccessTokenFromCookie } from "./auth";
+import { formatApiErrorResponse } from "./api-errors";
 
 function authHeaders(): Record<string, string> {
 	const token = getAccessTokenFromCookie();
@@ -22,6 +23,10 @@ export interface DocumentListItem {
 	created_at?: string;
 	vendor?: string;
 	total?: number;
+	invoice_number?: string | null;
+	currency?: string | null;
+	approval_status?: string | null;
+	has_exception?: boolean;
 }
 
 export interface ListDocumentsResponse {
@@ -100,9 +105,7 @@ export async function listDocuments(): Promise<ListDocumentsResponse> {
 		credentials: "include",
 	});
 	if (!res.ok)
-		throw new Error(
-			await res.text().catch(() => "Failed to list documents"),
-		);
+		throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -118,7 +121,7 @@ export async function uploadDocument(
 		body: form,
 		credentials: "include",
 	});
-	if (!res.ok) throw new Error(await res.text().catch(() => "Upload failed"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -131,8 +134,7 @@ export async function getDocumentStatus(
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to get status"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -145,8 +147,7 @@ export async function getDocumentResult(
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to get result"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -168,8 +169,7 @@ export async function listVendors(): Promise<ListVendorsResponse> {
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to list vendors"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -183,8 +183,7 @@ export async function downloadDocumentFile(
 		headers: { ...getDocumentRequestHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Download failed"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	const blob = await res.blob();
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");

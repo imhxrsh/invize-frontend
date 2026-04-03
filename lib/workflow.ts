@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAccessTokenFromCookie } from "./auth";
+import { formatApiErrorResponse } from "./api-errors";
 
 function authHeaders(): Record<string, string> {
 	const token = getAccessTokenFromCookie();
@@ -57,10 +58,7 @@ export async function getQueueItems(
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(
-			await res.text().catch(() => "Failed to get queue items"),
-		);
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -78,8 +76,7 @@ export async function updateReviewItem(
 		body: JSON.stringify(body),
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to update item"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -89,8 +86,7 @@ export async function getWorkflowStats(): Promise<DashboardStatsResponse> {
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to get stats"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -104,8 +100,7 @@ export async function approveJob(
 		body: JSON.stringify(comment != null ? { comment } : {}),
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Approve failed"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -119,7 +114,7 @@ export async function rejectJob(
 		body: JSON.stringify(comment != null ? { comment } : {}),
 		credentials: "include",
 	});
-	if (!res.ok) throw new Error(await res.text().catch(() => "Reject failed"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -145,9 +140,6 @@ export async function getPendingApprovals(params?: {
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(
-			await res.text().catch(() => "Failed to get pending approvals"),
-		);
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
