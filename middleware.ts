@@ -16,9 +16,8 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // Ensure proxied API calls carry Bearer auth: some stacks drop Authorization on rewrite;
-  // the access token cookie is same-origin to Next, so we mirror it to Authorization here.
-  if (pathname.startsWith('/api/')) {
+  // Ensure API proxy calls carry Bearer auth; cookie is same-origin to Next.
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
     const existing = req.headers.get('authorization')
     if (!existing) {
       const token = req.cookies.get(ACCESS_COOKIE)?.value
@@ -34,5 +33,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/:path*'],
+  matcher: ['/dashboard/:path*', '/api', '/api/:path*'],
 }

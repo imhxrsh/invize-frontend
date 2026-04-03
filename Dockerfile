@@ -1,11 +1,9 @@
 # Invize frontend — Next.js 14 (standalone output). Use in Dokploy with "Dockerfile" build type to avoid Nixpacks lockfile quirks.
 #
 # Build:
-#   docker build -t invize-frontend --build-arg BACKEND_URL=https://api.example.com .
-# Run:
-#   docker run -p 3000:3000 -e BACKEND_URL=https://api.example.com invize-frontend
-#
-# Rewrites in next.config.mjs bake BACKEND_URL at build time — pass the real API URL as build-arg.
+#   docker build -t invize-frontend .
+# Run (BACKEND_URL is read at runtime by app/api/[[...path]]/route.ts):
+#   docker run -p 3000:3000 -e BACKEND_URL=http://api:8000 invize-frontend
 
 FROM node:20-bookworm-slim AS deps
 WORKDIR /app
@@ -19,8 +17,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG BACKEND_URL=http://127.0.0.1:8000
-ENV BACKEND_URL=$BACKEND_URL
 RUN pnpm exec next build
 
 FROM node:20-bookworm-slim AS runner
