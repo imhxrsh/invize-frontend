@@ -48,6 +48,7 @@ import {
 	type PaymentBatchDto,
 } from "@/lib/payments";
 import { parseApiErrorText } from "@/lib/api-errors";
+import { formatDocumentCurrency } from "@/lib/format-currency";
 
 function approvalBadgeVariant(
 	status: string | null | undefined,
@@ -86,20 +87,6 @@ function paymentReadiness(row: DocumentListItem): { label: string; variant: "sec
 		return { label: "Amount OK — no approval record", variant: "outline" };
 	}
 	return { label: "Not ready — missing amount", variant: "outline" };
-}
-
-function formatAmount(value: number | null | undefined, currency?: string | null): string {
-	if (value == null || Number.isNaN(Number(value))) return "—";
-	const cur = (currency || "INR").toUpperCase();
-	try {
-		return new Intl.NumberFormat("en-IN", {
-			style: "currency",
-			currency: cur.length === 3 ? cur : "INR",
-			maximumFractionDigits: 2,
-		}).format(Number(value));
-	} catch {
-		return `${cur} ${Number(value).toLocaleString("en-IN")}`;
-	}
 }
 
 function displayApproval(status: string | null | undefined): string {
@@ -177,11 +164,19 @@ export default function PaymentsHubPage() {
 			return pr.label.startsWith("Ready");
 		});
 		const approvedTotal = approved.reduce((a, r) => a + (Number(r.total) || 0), 0);
+		const approvedCurrencies = new Set(
+			approved
+				.map((r) => (r.currency || "").trim().toUpperCase())
+				.filter((c) => /^[A-Z]{3}$/.test(c)),
+		);
+		const approvedCurrency =
+			approvedCurrencies.size === 1 ? [...approvedCurrencies][0]! : null;
 		return {
 			pendingCount: pending.length,
 			approvedCount: approved.length,
 			readyCount: ready.length,
 			approvedTotal,
+			approvedCurrency,
 		};
 	}, [rows]);
 
@@ -330,7 +325,11 @@ export default function PaymentsHubPage() {
 					</CardHeader>
 					<CardContent>
 						<div className="text-2xl font-bold tabular-nums">
-							{loading ? "—" : formatAmount(metrics.approvedTotal, "INR")}
+							{loading
+								? "—"
+								: formatDocumentCurrency(metrics.approvedTotal, metrics.approvedCurrency, {
+										maximumFractionDigits: 2,
+									})}
 						</div>
 						<p className="text-xs text-muted-foreground">Sum of totals (completed)</p>
 					</CardContent>
@@ -423,7 +422,9 @@ export default function PaymentsHubPage() {
 															{row.invoice_number ?? "—"}
 														</TableCell>
 														<TableCell className="text-right font-medium tabular-nums">
-															{formatAmount(row.total ?? null, row.currency)}
+															{formatDocumentCurrency(row.total ?? null, row.currency, {
+																maximumFractionDigits: 2,
+															})}
 														</TableCell>
 														<TableCell>
 															<Badge variant="outline" className="capitalize">
@@ -514,7 +515,10 @@ export default function PaymentsHubPage() {
 												) : (
 													b.lines.map((ln) => (
 														<li key={ln.id}>
-															{ln.job_id} — {formatAmount(ln.amount, ln.currency)}
+															{ln.job_id} —{" "}
+															{formatDocumentCurrency(ln.amount, ln.currency, {
+																maximumFractionDigits: 2,
+															})}
 														</li>
 													))
 												)}
@@ -532,10 +536,11 @@ export default function PaymentsHubPage() {
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2">
 								<Sparkles className="h-5 w-5 text-violet-600" />
-								Payment agent (Groq)
+								Payment suggestions
 							</CardTitle>
 							<CardDescription>
-								Suggestions only — confirm actions in batches. Requires <code className="text-xs">GROQ_API_KEY</code>.
+								Suggestions only — confirm actions in batches. Requires the AI assistant to be enabled on
+								the server.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
@@ -571,7 +576,11 @@ export default function PaymentsHubPage() {
 							</CardHeader>
 							<CardContent className="text-sm text-muted-foreground">
 								<p>
-									{batch.invoiceCount} invoices · {formatAmount(batch.totalAmount, "INR")} · {batch.status}
+									{batch.invoiceCount} invoices ·{" "}
+									{formatDocumentCurrency(batch.totalAmount, "INR", {
+										maximumFractionDigits: 2,
+									})}{" "}
+									· {batch.status}
 								</p>
 							</CardContent>
 						</Card>

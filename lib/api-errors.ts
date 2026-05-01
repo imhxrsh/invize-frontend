@@ -66,7 +66,7 @@ function humanizeErrorPhrase(message: string): string {
 		},
 		{
 			match: /GROQ_API_KEY/i,
-			say: "The AI helper isn’t configured (missing GROQ_API_KEY on the server).",
+			say: "The AI assistant isn’t configured on the server. Ask your administrator to review the API environment.",
 		},
 		{
 			match: /Swarms AI unavailable/i,

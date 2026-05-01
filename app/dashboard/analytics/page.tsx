@@ -45,6 +45,7 @@ import {
 import { getWorkflowStats } from "@/lib/workflow";
 import { listDocuments, listVendors, getDocumentResult } from "@/lib/documents";
 import type { DocumentListItem, DocumentResultResponse } from "@/lib/documents";
+import { formatDocumentCurrency } from "@/lib/format-currency";
 
 // ── Accuracy breakdown (static — reflects AI pipeline config) ─────────────
 const accuracyData = [
@@ -368,7 +369,9 @@ export default function AnalyticsPage() {
 												borderRadius: "8px",
 											}}
 											formatter={(value, _name, props) => [
-												`₹${Number(value).toLocaleString("en-IN")}`,
+												formatDocumentCurrency(Number(value), null, {
+													maximumFractionDigits: 0,
+												}),
 												props.payload.fullName ?? "Spend",
 											]}
 										/>

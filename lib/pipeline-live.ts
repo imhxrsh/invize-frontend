@@ -45,14 +45,14 @@ export const LIVE_PIPELINE_STEPS: LivePipelineStep[] = [
 	},
 	{
 		id: "enrich",
-		title: "LLM enrich",
-		subtitle: "Optional Groq pass to fill missing vendor, totals, or invoice # (grounded in OCR text).",
+		title: "Enriching details",
+		subtitle: "Optional pass to fill missing totals or invoice numbers using the extracted text.",
 		matchers: ["enriching fields"],
 	},
 	{
 		id: "swarms",
-		title: "Swarms agent",
-		subtitle: "Structured analysis: summary, flags, and recommendations (validated JSON).",
+		title: "AI review",
+		subtitle: "Structured summary, flags, and recommendations.",
 		matchers: ["analyzing with agent"],
 	},
 	{
@@ -75,6 +75,25 @@ export const LIVE_PIPELINE_STEPS: LivePipelineStep[] = [
 	},
 ];
 
+function bestStepIndexFromHaystack(haystack: string, statusLower: string): number {
+	let best = 0;
+	if (statusLower === "processing" || statusLower === "failed") {
+		best = 1;
+	}
+
+	for (let i = 0; i < LIVE_PIPELINE_STEPS.length; i++) {
+		const { matchers } = LIVE_PIPELINE_STEPS[i]!;
+		if (matchers.length === 0) continue;
+		if (matchers.some((m) => haystack.includes(m.toLowerCase()))) {
+			best = Math.max(best, i);
+		}
+	}
+
+	if (statusLower === "pending" && !haystack.trim()) best = 0;
+
+	return best;
+}
+
 /**
  * Returns active step index in LIVE_PIPELINE_STEPS (0..length-1), or length when completed.
  * Returns -1 when failed.
@@ -82,26 +101,13 @@ export const LIVE_PIPELINE_STEPS: LivePipelineStep[] = [
 export function resolveLivePipelineStep(
 	progress: string | undefined,
 	status: string,
+	progressHistory?: string[],
 ): number {
 	const s = (status || "").toLowerCase();
 	if (s === "completed") return LIVE_PIPELINE_STEPS.length;
 
-	const p = (progress ?? "").toLowerCase();
-	let best = 0;
+	const lines = [...(progressHistory ?? []), ...(progress ? [progress] : [])];
+	const haystack = lines.map((l) => l.toLowerCase()).join("\n");
 
-	if (s === "processing" || s === "failed") {
-		best = 1;
-	}
-
-	for (let i = 0; i < LIVE_PIPELINE_STEPS.length; i++) {
-		const { matchers } = LIVE_PIPELINE_STEPS[i]!;
-		if (matchers.length === 0) continue;
-		if (matchers.some((m) => p.includes(m.toLowerCase()))) {
-			best = Math.max(best, i);
-		}
-	}
-
-	if (s === "pending" && !p) best = 0;
-
-	return best;
+	return bestStepIndexFromHaystack(haystack, s);
 }

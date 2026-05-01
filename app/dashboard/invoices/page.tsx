@@ -22,6 +22,7 @@ import {
 	uploadDocument,
 	type DocumentListItem,
 } from "@/lib/documents";
+import { formatDocumentCurrency } from "@/lib/format-currency";
 
 function getStatusBadge(status: string) {
 	switch (status) {
@@ -53,15 +54,6 @@ function getStatusBadge(status: string) {
 		default:
 			return <Badge variant="secondary">{status}</Badge>;
 	}
-}
-
-function formatAmount(value: number | undefined): string {
-	if (value == null || Number.isNaN(value)) return "—";
-	return new Intl.NumberFormat("en-IN", {
-		style: "currency",
-		currency: "INR",
-		maximumFractionDigits: 0,
-	}).format(value);
 }
 
 export default function InvoicesPage() {
@@ -268,8 +260,10 @@ export default function InvoicesPage() {
 														…
 													</TableCell>
 													<TableCell className="font-semibold">
-														{formatAmount(
+														{formatDocumentCurrency(
 															doc.total,
+															doc.currency,
+															{ maximumFractionDigits: 0 },
 														)}
 													</TableCell>
 													<TableCell>

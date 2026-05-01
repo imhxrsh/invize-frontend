@@ -44,10 +44,12 @@ export interface DocumentStatusResponse {
 	job_id: string;
 	status: DocumentStatus;
 	progress?: string;
+	/** Ordered progress lines for live UI (when supported by the API). */
+	progress_history?: string[];
 	error?: string;
 }
 
-/** Swarms / LLM invoice analysis block from the pipeline (optional). */
+/** Optional structured invoice analysis from the pipeline (LLM). */
 export interface AgentAnalysisBlock {
 	context?: string;
 	model?: string;
@@ -59,7 +61,7 @@ export interface AgentAnalysisBlock {
 	recommendations?: string[];
 	supplier_guess?: string | null;
 	buyer_guess?: string | null;
-	/** Set when backend normalizes Swarms output; false = use extracted fields only for facts. */
+	/** Set when backend normalizes model output; false = use extracted fields only for facts. */
 	parse_ok?: boolean;
 	[key: string]: unknown;
 }

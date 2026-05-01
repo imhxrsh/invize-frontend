@@ -21,6 +21,7 @@ import {
 import { Building2, DollarSign, FileText, Loader2, Search } from "lucide-react";
 import { listVendors, type VendorSummary } from "@/lib/documents";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatDocumentCurrency } from "@/lib/format-currency";
 
 export default function VendorsPage() {
 	const [vendors, setVendors] = useState<VendorSummary[]>([]);
@@ -109,11 +110,7 @@ export default function VendorsPage() {
 						<div className="text-2xl font-bold tabular-nums">
 							{loading
 								? "—"
-								: new Intl.NumberFormat("en-IN", {
-										style: "currency",
-										currency: "INR",
-										maximumFractionDigits: 0,
-									}).format(totalSpend)}
+								: formatDocumentCurrency(totalSpend, null, { maximumFractionDigits: 0 })}
 						</div>
 						<p className="text-xs text-muted-foreground">Sum of totals field</p>
 					</CardContent>
@@ -173,11 +170,7 @@ export default function VendorsPage() {
 													{v.invoice_count}
 												</TableCell>
 												<TableCell className="text-right font-medium tabular-nums">
-													{new Intl.NumberFormat("en-IN", {
-														style: "currency",
-														currency: "INR",
-														maximumFractionDigits: 2,
-													}).format(v.total)}
+													{formatDocumentCurrency(v.total, null, { maximumFractionDigits: 2 })}
 												</TableCell>
 											</TableRow>
 										))

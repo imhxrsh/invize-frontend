@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
 	Activity,
@@ -48,8 +48,9 @@ import {
 	LIVE_PIPELINE_STEPS,
 	resolveLivePipelineStep,
 } from "@/lib/pipeline-live";
+import { formatDocumentCurrency } from "@/lib/format-currency";
 
-const POLL_MS = 1200;
+const POLL_MS = 450;
 
 function StepRow({
 	index,
@@ -151,14 +152,11 @@ function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 	const approval = workflow?.approval_summary?.status;
 	const exception = workflow?.exception;
 
-	const totalFmt =
-		ext?.total != null
-			? new Intl.NumberFormat("en-IN", {
-					style: "currency",
-					currency: "INR",
-					maximumFractionDigits: 2,
-				}).format(Number(ext.total))
-			: "—";
+	const totalFmt = formatDocumentCurrency(
+		ext?.total != null ? Number(ext.total) : null,
+		typeof ext?.currency === "string" ? ext.currency : null,
+		{ maximumFractionDigits: 2 },
+	);
 
 	const paymentHint =
 		approval === "approved" && ext?.total != null && Number(ext.total) > 0 && !exception
@@ -381,16 +379,19 @@ function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 				<TabsContent value="agent" className="mt-4 space-y-3">
 					{aa ? (
 						<>
-							<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-								{aa.model != null && (
-									<span>
-										Model: <span className="font-mono text-foreground">{String(aa.model)}</span>
-									</span>
-								)}
-								{aa.execution_time != null && (
-									<span>Runtime: {Number(aa.execution_time).toFixed(2)}s</span>
-								)}
-							</div>
+							{(aa.context != null || aa.execution_time != null) && (
+								<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+									{aa.context != null && (
+										<span>
+											Context:{" "}
+											<span className="font-medium text-foreground">{String(aa.context)}</span>
+										</span>
+									)}
+									{aa.execution_time != null && (
+										<span>Runtime: {Number(aa.execution_time).toFixed(2)}s</span>
+									)}
+								</div>
+							)}
 							{analysisParseUntrusted && (
 								<p className="rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
 									Structured AI analysis was not fully verified. Rely on extracted
@@ -456,7 +457,8 @@ function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 						</>
 					) : (
 						<p className="text-sm text-muted-foreground">
-							No agent analysis. Ensure <code className="text-xs">GROQ_API_KEY</code> is set on the backend.
+							No AI analysis for this run. Your administrator can enable the analysis step on the server if
+							needed.
 						</p>
 					)}
 				</TabsContent>
@@ -484,7 +486,10 @@ export default function ProcessLivePage() {
 	const [uploading, setUploading] = useState(false);
 	const [progressLog, setProgressLog] = useState<string[]>([]);
 
-	const activeStep = resolveLivePipelineStep(progress, status);
+	const activeStep = useMemo(
+		() => resolveLivePipelineStep(progress, status, progressLog),
+		[progress, status, progressLog],
+	);
 	const failed = status === "failed";
 	const completed = status === "completed";
 	/** On failure, highlight the last known stage (no spinner). */
@@ -494,7 +499,15 @@ export default function ProcessLivePage() {
 		const st = await getDocumentStatus(id);
 		setStatus(st.status);
 		setProgress(st.progress);
-		if (st.progress) {
+		if (Array.isArray(st.progress_history) && st.progress_history.length > 0) {
+			setProgressLog((prev) => {
+				const preamble =
+					prev.length > 0 && prev[0]!.startsWith("Upload received")
+						? [prev[0]!]
+						: [];
+				return [...preamble, ...st.progress_history!];
+			});
+		} else if (st.progress) {
 			const line = st.progress;
 			setProgressLog((prev) =>
 				prev[prev.length - 1] === line ? prev : [...prev, line],
@@ -665,8 +678,6 @@ export default function ProcessLivePage() {
 										<p className="mt-2 text-muted-foreground">{progress}</p>
 									)}
 								</div>
-
-								<Separator />
 
 								{progressLog.length > 0 && (
 									<>

@@ -233,9 +233,8 @@ export default function GmailInboxPage() {
 					<div>
 						<CardTitle>Classified mail</CardTitle>
 						<CardDescription>
-							{total} message{total !== 1 ? "s" : ""} total · Swarms category
-							and confidence; pipeline runs for invoice/receipt when a PDF or
-							image is attached
+							{total} message{total !== 1 ? "s" : ""} total · AI-assigned category
+							and confidence; pipeline runs for invoice/receipt when a PDF or image is attached
 						</CardDescription>
 					</div>
 					<div className="flex items-center gap-2 text-sm text-muted-foreground">

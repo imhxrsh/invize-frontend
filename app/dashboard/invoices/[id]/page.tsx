@@ -32,6 +32,7 @@ import { approveJob, rejectJob } from "@/lib/workflow";
 import { API_BASE_URL } from "@/lib/config";
 import { parseAgentAnalysisResultText } from "@/lib/agent-analysis";
 import { parseApiErrorText, userFacingErrorMessage } from "@/lib/api-errors";
+import { formatDocumentCurrency } from "@/lib/format-currency";
 
 // ── Document Viewer (authorized fetch → blob; `/file` requires Bearer) ─────
 function DocumentViewer({ jobId }: { jobId: string }) {
@@ -486,7 +487,13 @@ export default function InvoiceDetailPage() {
 											<Input
 												value={
 													ext.total != null
-														? String(ext.total)
+														? formatDocumentCurrency(
+																Number(ext.total),
+																typeof ext.currency === "string"
+																	? ext.currency
+																	: null,
+																{ maximumFractionDigits: 2 },
+															)
 														: ""
 												}
 												readOnly
@@ -666,38 +673,31 @@ Approval:{" "}
 							<CardHeader>
 								<CardTitle>AI analysis</CardTitle>
 								<p className="text-sm text-muted-foreground font-normal">
-									Invoice review from the configured model
-									(Swarms / Context7-style prompt). Shown when
-									API keys and the agent step succeed.
+									Optional structured review from the pipeline when AI analysis is enabled.
 								</p>
 							</CardHeader>
 							<CardContent className="space-y-4 text-sm">
 								{agentAnalysis ? (
 									<>
-										<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-											{agentAnalysis.context != null && (
-												<span>
-													Context:{" "}
-													<span className="font-medium text-foreground">
-														{String(agentAnalysis.context)}
+										{(agentAnalysis.context != null ||
+											agentAnalysis.execution_time != null) && (
+											<div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+												{agentAnalysis.context != null && (
+													<span>
+														Context:{" "}
+														<span className="font-medium text-foreground">
+															{String(agentAnalysis.context)}
+														</span>
 													</span>
-												</span>
-											)}
-											{agentAnalysis.model != null && (
-												<span>
-													Model:{" "}
-													<span className="font-mono text-foreground">
-														{String(agentAnalysis.model)}
+												)}
+												{agentAnalysis.execution_time != null && (
+													<span>
+														Runtime:{" "}
+														{Number(agentAnalysis.execution_time).toFixed(2)}s
 													</span>
-												</span>
-											)}
-											{agentAnalysis.execution_time != null && (
-												<span>
-													Runtime:{" "}
-													{Number(agentAnalysis.execution_time).toFixed(2)}s
-												</span>
-											)}
-										</div>
+												)}
+											</div>
+										)}
 										{analysisParseUntrusted && (
 											<p className="rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
 												Structured AI analysis was not fully verified. Do not treat

@@ -869,9 +869,8 @@ export default function SettingsPage() {
 						<CardHeader>
 							<CardTitle>Gmail inbox</CardTitle>
 							<CardDescription>
-								Classify mail with Swarms, ingest logs, and run the
-								document pipeline on invoice attachments. Manage
-								everything on the Gmail inbox page.
+								Classify mail automatically, keep ingest logs, and run the document pipeline on invoice
+								attachments. Manage everything on the Gmail inbox page.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
