@@ -67,6 +67,7 @@ async function proxy(req: NextRequest, segments: string[]): Promise<Response> {
     method,
     headers: forwardRequestHeaders(req.headers),
     redirect: 'manual',
+    cache: 'no-store',
   }
   if (!['GET', 'HEAD'].includes(method) && req.body) {
     init.body = req.body

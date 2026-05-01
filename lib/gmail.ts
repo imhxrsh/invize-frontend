@@ -81,7 +81,11 @@ export async function listGmailScanned(params?: {
 	limit?: number;
 	skip?: number;
 	category?: string;
-}): Promise<{ items: GmailScanRow[]; total: number }> {
+}): Promise<{
+	items: GmailScanRow[];
+	total: number;
+	non_invoice_pipeline_skipped: number;
+}> {
 	const q = new URLSearchParams();
 	if (params?.limit != null) q.set("limit", String(params.limit));
 	if (params?.skip != null) q.set("skip", String(params.skip));

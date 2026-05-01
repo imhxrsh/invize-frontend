@@ -87,7 +87,9 @@ export default function RootLayout({
         >
           <Suspense fallback={<div>Loading...</div>}>{children}</Suspense>
         </ThemeProvider>
-        <Analytics />
+        {process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === "true" ? (
+          <Analytics />
+        ) : null}
       </body>
     </html>
   );

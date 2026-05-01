@@ -44,7 +44,11 @@ import {
 } from "lucide-react";
 import { getWorkflowStats } from "@/lib/workflow";
 import { listDocuments, listVendors, getDocumentResult } from "@/lib/documents";
-import type { DocumentListItem, DocumentResultResponse } from "@/lib/documents";
+import type {
+	AgentAnalysisBlock,
+	DocumentListItem,
+	DocumentResultResponse,
+} from "@/lib/documents";
 import { formatDocumentCurrency } from "@/lib/format-currency";
 
 // ── Accuracy breakdown (static — reflects AI pipeline config) ─────────────
@@ -85,6 +89,20 @@ function exceptionColor(type?: string): string {
 	if (t.includes("mismatch") || t.includes("variance") || t.includes("price")) return "border-red-300 text-red-700 bg-red-50 dark:bg-red-950/30";
 	if (t.includes("duplicate")) return "border-purple-300 text-purple-700 bg-purple-50 dark:bg-purple-950/30";
 	return "border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-950/30";
+}
+
+/** agent_analysis from API is an object — never render it as a React child. */
+function agentAnalysisToText(block: AgentAnalysisBlock | null | undefined): string | null {
+	if (block == null) return null;
+	const chunks: string[] = [];
+	if (typeof block.result === "string" && block.result.trim()) chunks.push(block.result.trim());
+	if (typeof block.summary === "string" && block.summary.trim()) chunks.push(block.summary.trim());
+	if (Array.isArray(block.flags) && block.flags.length)
+		chunks.push(`Flags: ${block.flags.join("; ")}`);
+	if (Array.isArray(block.recommendations) && block.recommendations.length)
+		chunks.push(`Recommendations: ${block.recommendations.join("; ")}`);
+	if (chunks.length === 0) return null;
+	return chunks.join("\n\n");
 }
 
 export default function AnalyticsPage() {
@@ -296,7 +314,7 @@ export default function AnalyticsPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<div className="h-72">
+						<div className="h-72 w-full min-h-[18rem] min-w-0">
 							{loading ? (
 								<div className="flex items-center justify-center h-full">
 									<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -307,7 +325,7 @@ export default function AnalyticsPage() {
 									<p className="text-sm">No data yet</p>
 								</div>
 							) : (
-								<ResponsiveContainer width="100%" height="100%">
+								<ResponsiveContainer width="100%" height="100%" minHeight={280}>
 									<LineChart data={volumeData}>
 										<CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground))" opacity={0.3} />
 										<XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
@@ -346,7 +364,7 @@ export default function AnalyticsPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<div className="h-72">
+						<div className="h-72 w-full min-h-[18rem] min-w-0">
 							{loading ? (
 								<div className="flex items-center justify-center h-full">
 									<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -357,7 +375,7 @@ export default function AnalyticsPage() {
 									<p className="text-sm">No vendor data yet</p>
 								</div>
 							) : (
-								<ResponsiveContainer width="100%" height="100%">
+								<ResponsiveContainer width="100%" height="100%" minHeight={280}>
 									<BarChart data={vendorChartData}>
 										<CartesianGrid strokeDasharray="3 3" opacity={0.3} />
 										<XAxis dataKey="vendor" fontSize={11} />
@@ -435,8 +453,8 @@ export default function AnalyticsPage() {
 						<CardDescription>AI accuracy breakdown (pipeline configuration)</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<div className="h-52">
-							<ResponsiveContainer width="100%" height="100%">
+						<div className="h-52 w-full min-h-[13rem] min-w-0">
+							<ResponsiveContainer width="100%" height="100%" minHeight={208}>
 								<PieChart>
 									<Pie
 										data={accuracyData}
@@ -502,8 +520,13 @@ export default function AnalyticsPage() {
 						<div className="space-y-4">
 							{insights.map(({ job_id, filename, result }) => {
 								const exc = result.operations_workflow?.exception;
-								const suggestedActions = (exc as any)?.suggested_actions as string[] | undefined;
-								const agentAnalysis = (result as any)?.agent_analysis as string | undefined;
+								const rawActions = exc?.suggested_actions;
+								const suggestedActions = Array.isArray(rawActions)
+									? rawActions.map((a) =>
+											typeof a === "string" ? a : JSON.stringify(a),
+										)
+									: undefined;
+								const agentAnalysis = agentAnalysisToText(result.agent_analysis);
 								return (
 									<div
 										key={job_id}

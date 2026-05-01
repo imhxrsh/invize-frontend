@@ -48,6 +48,7 @@ export default function GmailInboxPage() {
 	const [status, setStatus] = useState<GmailStatus | null>(null);
 	const [items, setItems] = useState<GmailScanRow[]>([]);
 	const [total, setTotal] = useState(0);
+	const [nonInvoiceSkipped, setNonInvoiceSkipped] = useState(0);
 	const [skip, setSkip] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const [busy, setBusy] = useState(false);
@@ -61,11 +62,12 @@ export default function GmailInboxPage() {
 		try {
 			const [st, scanned] = await Promise.all([
 				getGmailStatus(),
-				listGmailScanned({ limit: PAGE_SIZE, skip }),
+				listGmailScanned({ limit: PAGE_SIZE, skip, category: "invoice" }),
 			]);
 			setStatus(st);
 			setItems(scanned.items ?? []);
 			setTotal(scanned.total ?? 0);
+			setNonInvoiceSkipped(scanned.non_invoice_pipeline_skipped ?? 0);
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : "Failed to load Gmail data");
 		} finally {
@@ -132,7 +134,13 @@ export default function GmailInboxPage() {
 		try {
 			const r = await scanGmailInbox();
 			setSuccess(r.message || "Scan queued.");
-			window.setTimeout(() => void load(), 3000);
+			// Background scan can take longer than one LLM call (batch pauses, many messages).
+			void (async () => {
+				for (let i = 0; i < 25; i++) {
+					await new Promise((res) => setTimeout(res, i === 0 ? 1500 : 2000));
+					await load();
+				}
+			})();
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : "Scan failed");
 		} finally {
@@ -166,8 +174,8 @@ export default function GmailInboxPage() {
 						Gmail inbox
 					</h1>
 					<p className="text-muted-foreground">
-						Classified messages, scores, ingest logs, and invoice pipeline
-						from attachments
+						Invoice-classified messages and attachment pipeline; other mail is
+						summarized below
 					</p>
 				</div>
 				<div className="flex flex-wrap gap-2">
@@ -231,10 +239,12 @@ export default function GmailInboxPage() {
 			<Card>
 				<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
 					<div>
-						<CardTitle>Classified mail</CardTitle>
+						<CardTitle>Invoices from Gmail</CardTitle>
 						<CardDescription>
-							{total} message{total !== 1 ? "s" : ""} total · AI-assigned category
-							and confidence; pipeline runs for invoice/receipt when a PDF or image is attached
+							{total} invoice{total !== 1 ? "s" : ""} in this list
+							{nonInvoiceSkipped > 0
+								? ` · ${nonInvoiceSkipped} other message${nonInvoiceSkipped !== 1 ? "s" : ""} not classified as invoice (pipeline skipped)`
+								: ""}
 						</CardDescription>
 					</div>
 					<div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -269,7 +279,6 @@ export default function GmailInboxPage() {
 									<TableRow>
 										<TableHead className="w-8" />
 										<TableHead>Score</TableHead>
-										<TableHead>Category</TableHead>
 										<TableHead>Pipeline</TableHead>
 										<TableHead>Att</TableHead>
 										<TableHead>Subject</TableHead>
@@ -282,10 +291,10 @@ export default function GmailInboxPage() {
 									{items.length === 0 ? (
 										<TableRow>
 											<TableCell
-												colSpan={9}
+												colSpan={8}
 												className="text-center text-muted-foreground py-10"
 											>
-												No rows yet. Connect and run a scan.
+												No invoice-classified messages yet. Connect and run a scan.
 											</TableCell>
 										</TableRow>
 									) : (
@@ -314,9 +323,6 @@ export default function GmailInboxPage() {
 															{row.confidence != null
 																? `${Math.round(row.confidence * 100)}%`
 																: "—"}
-														</TableCell>
-														<TableCell>
-															<Badge variant="secondary">{row.category}</Badge>
 														</TableCell>
 														<TableCell>
 															<Badge
@@ -372,7 +378,7 @@ export default function GmailInboxPage() {
 											return [
 												mainRow,
 												<TableRow key={`${row.id}-detail`}>
-													<TableCell colSpan={9} className="bg-muted/30 p-4">
+													<TableCell colSpan={8} className="bg-muted/30 p-4">
 														<div className="space-y-3 text-sm">
 															{row.reasons && row.reasons.length > 0 && (
 																<div>
