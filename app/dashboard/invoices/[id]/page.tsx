@@ -30,28 +30,8 @@ import {
 } from "@/lib/documents";
 import { approveJob, rejectJob } from "@/lib/workflow";
 import { API_BASE_URL } from "@/lib/config";
-
-function tryParseAgentStructured(resultText: string | undefined): {
-	summary?: string;
-	flags?: string[];
-	recommendations?: string[];
-} {
-	if (!resultText || typeof resultText !== "string") return {};
-	const t = resultText.trim();
-	if (!t.startsWith("{")) return {};
-	try {
-		const o = JSON.parse(t) as Record<string, unknown>;
-		return {
-			summary: typeof o.summary === "string" ? o.summary : undefined,
-			flags: Array.isArray(o.flags) ? o.flags.map(String) : undefined,
-			recommendations: Array.isArray(o.recommendations)
-				? o.recommendations.map(String)
-				: undefined,
-		};
-	} catch {
-		return {};
-	}
-}
+import { parseAgentAnalysisResultText } from "@/lib/agent-analysis";
+import { parseApiErrorText, userFacingErrorMessage } from "@/lib/api-errors";
 
 // ── Document Viewer (authorized fetch → blob; `/file` requires Bearer) ─────
 function DocumentViewer({ jobId }: { jobId: string }) {
@@ -249,7 +229,7 @@ export default function InvoiceDetailPage() {
 			const res = await getDocumentResult(jobId);
 			setResult(res);
 		} catch (e: unknown) {
-			setError(e instanceof Error ? e.message : "Approve failed");
+			setError(userFacingErrorMessage(e, "Approve failed."));
 		} finally {
 			setActionLoading(null);
 		}
@@ -263,7 +243,7 @@ export default function InvoiceDetailPage() {
 			const res = await getDocumentResult(jobId);
 			setResult(res);
 		} catch (e: unknown) {
-			setError(e instanceof Error ? e.message : "Reject failed");
+			setError(userFacingErrorMessage(e, "Reject failed."));
 		} finally {
 			setActionLoading(null);
 		}
@@ -274,7 +254,13 @@ export default function InvoiceDetailPage() {
 	const matching = result?.matching_erp;
 	const workflow = result?.operations_workflow;
 	const agentAnalysis = result?.agent_analysis;
-	const parsedAgent = tryParseAgentStructured(agentAnalysis?.result);
+	const parsedAgent = parseAgentAnalysisResultText(
+		typeof agentAnalysis?.result === "string"
+			? agentAnalysis.result
+			: undefined,
+	);
+	const analysisParseUntrusted =
+		agentAnalysis?.parse_ok === false || parsedAgent.parse_ok === false;
 
 	const handleDownload = async () => {
 		if (!jobId) return;
@@ -282,9 +268,7 @@ export default function InvoiceDetailPage() {
 		try {
 			await downloadDocumentFile(jobId);
 		} catch (e: unknown) {
-			setDownloadError(
-				e instanceof Error ? e.message : "Download failed",
-			);
+			setDownloadError(userFacingErrorMessage(e, "Download failed."));
 		}
 	};
 	const matchStatus = matching?.match_result?.match_status;
@@ -391,7 +375,9 @@ export default function InvoiceDetailPage() {
 							Processing failed
 						</p>
 						<p className="text-sm text-muted-foreground">
-							{result.error ?? "Unknown error"}
+							{result.error
+								? parseApiErrorText(result.error)
+								: "Unknown error"}
 						</p>
 					</CardContent>
 				</Card>
@@ -712,10 +698,36 @@ Approval:{" "}
 												</span>
 											)}
 										</div>
+										{analysisParseUntrusted && (
+											<p className="rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+												Structured AI analysis was not fully verified. Do not treat
+												vendor names or amounts here as authoritative—use extracted
+												fields and the original document.
+											</p>
+										)}
 										{(parsedAgent.summary ||
 											parsedAgent.flags?.length ||
-											parsedAgent.recommendations?.length) && (
+											parsedAgent.recommendations?.length ||
+											parsedAgent.supplier_guess !== undefined ||
+											parsedAgent.buyer_guess !== undefined) && (
 											<div className="space-y-2 rounded-md border bg-muted/40 p-3">
+												{(parsedAgent.supplier_guess !== undefined ||
+													parsedAgent.buyer_guess !== undefined) && (
+													<div className="grid gap-1 text-sm sm:grid-cols-2">
+														{parsedAgent.supplier_guess !== undefined && (
+															<p>
+																<span className="font-medium">Vendor (AI): </span>
+																{parsedAgent.supplier_guess ?? "—"}
+															</p>
+														)}
+														{parsedAgent.buyer_guess !== undefined && (
+															<p>
+																<span className="font-medium">Buyer (AI): </span>
+																{parsedAgent.buyer_guess ?? "—"}
+															</p>
+														)}
+													</div>
+												)}
 												{parsedAgent.summary && (
 													<p>
 														<span className="font-medium">Summary: </span>
@@ -743,7 +755,9 @@ Approval:{" "}
 											!(
 												parsedAgent.summary ||
 												parsedAgent.flags?.length ||
-												parsedAgent.recommendations?.length
+												parsedAgent.recommendations?.length ||
+												parsedAgent.supplier_guess !== undefined ||
+												parsedAgent.buyer_guess !== undefined
 											) && (
 												<pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs whitespace-pre-wrap">
 													{String(agentAnalysis.result)}

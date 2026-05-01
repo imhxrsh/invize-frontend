@@ -38,8 +38,7 @@ export async function getWorkflowQueues(): Promise<QueueCountsResponse> {
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to get queues"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 

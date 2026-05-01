@@ -1,4 +1,5 @@
 import { API_BASE_URL, ACCESS_COOKIE_NAME, ACCESS_TOKEN_MAX_AGE_SEC, REFRESH_TOKEN_HEADER, REFRESH_TOKEN_STORAGE_KEY } from './config';
+import { parseApiErrorText } from './api-errors';
 
 function isClient() {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
@@ -139,7 +140,7 @@ export async function me() {
 async function safeErrorMessage(res: Response, fallback: string) {
   try {
     const text = await res.text();
-    if (text) return text;
+    if (text.trim()) return parseApiErrorText(text);
   } catch {}
   return fallback;
 }

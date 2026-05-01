@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './config'
 import { getAccessTokenFromCookie } from './auth'
+import { formatApiErrorResponse } from './api-errors'
 
 function authHeaders() {
   const token = getAccessTokenFromCookie()
@@ -14,7 +15,7 @@ export async function getProfileContext() {
     headers: { ...authHeaders() },
     credentials: 'include',
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res))
   return res.json()
 }
 
@@ -24,7 +25,7 @@ export async function getSecuritySummary() {
     headers: { ...authHeaders() },
     credentials: 'include',
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res))
   return res.json()
 }
 
@@ -40,7 +41,7 @@ export async function updateMe(payload: {
     body: JSON.stringify(payload),
     credentials: 'include',
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res))
   return res.json()
 }
 
@@ -57,7 +58,7 @@ export async function updatePreferences(payload: {
     body: JSON.stringify(normalizePreferences(payload)),
     credentials: 'include',
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res))
   return res.json()
 }
 
@@ -70,7 +71,7 @@ export async function uploadAvatar(file: File) {
     body: form,
     credentials: 'include',
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res))
   return res.json()
 }
 

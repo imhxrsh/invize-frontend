@@ -44,9 +44,15 @@ export const LIVE_PIPELINE_STEPS: LivePipelineStep[] = [
 		matchers: ["validating results"],
 	},
 	{
+		id: "enrich",
+		title: "LLM enrich",
+		subtitle: "Optional Groq pass to fill missing vendor, totals, or invoice # (grounded in OCR text).",
+		matchers: ["enriching fields"],
+	},
+	{
 		id: "swarms",
 		title: "Swarms agent",
-		subtitle: "Optional AI pass: summary, flags, and recommendations.",
+		subtitle: "Structured analysis: summary, flags, and recommendations (validated JSON).",
 		matchers: ["analyzing with agent"],
 	},
 	{

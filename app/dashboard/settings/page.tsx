@@ -25,7 +25,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Database } from "lucide-react";
 import {
 	Select,
 	SelectContent,
@@ -35,11 +34,21 @@ import {
 } from "@/components/ui/select";
 import { getProfileContext, updateMe, updatePreferences } from "@/lib/profile";
 import { getTeam, inviteUser, type TeamMember } from "@/lib/users";
+import { firstZodMessage, inviteEmailSchema } from "@/lib/validation";
 import {
 	getIntegrations,
 	setERPType,
 	type IntegrationItem,
 } from "@/lib/integrations";
+import {
+	disconnectGmail,
+	getGmailStatus,
+	scanGmailInbox,
+	startGmailOAuth,
+	type GmailStatus,
+} from "@/lib/gmail";
+import { Database, Mail } from "lucide-react";
+import Link from "next/link";
 
 export default function SettingsPage() {
 	const [activeTab, setActiveTab] = useState("profile");
@@ -73,6 +82,23 @@ export default function SettingsPage() {
 	);
 	const [integrationsLoading, setIntegrationsLoading] = useState(false);
 	const [settingERP, setSettingERP] = useState<string | null>(null);
+	const [gmailStatus, setGmailStatus] = useState<GmailStatus | null>(null);
+	const [gmailBusy, setGmailBusy] = useState(false);
+
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const params = new URLSearchParams(window.location.search);
+		if (params.get("tab") === "integrations") setActiveTab("integrations");
+		if (params.get("gmail") === "connected")
+			setSuccess(
+				"Gmail connected. Open Gmail inbox under the dashboard to scan and view results.",
+			);
+		if (params.get("gmail") === "error")
+			setError(
+				decodeURIComponent(params.get("message") || "") ||
+					"Gmail connection failed.",
+			);
+	}, []);
 
 	useEffect(() => {
 		let mounted = true;
@@ -192,13 +218,29 @@ export default function SettingsPage() {
 		if (activeTab === "users") fetchTeam();
 	}, [activeTab]);
 
+	const fetchGmail = async () => {
+		setGmailBusy(true);
+		try {
+			const st = await getGmailStatus();
+			setGmailStatus(st);
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : "Gmail load failed");
+		} finally {
+			setGmailBusy(false);
+		}
+	};
+
 	useEffect(() => {
-		if (activeTab === "integrations") fetchIntegrations();
+		if (activeTab === "integrations") {
+			fetchIntegrations();
+			fetchGmail();
+		}
 	}, [activeTab]);
 
 	const handleInviteUser = async () => {
-		if (!inviteEmail.trim()) {
-			setError("Enter email");
+		const checked = inviteEmailSchema.safeParse({ email: inviteEmail });
+		if (!checked.success) {
+			setError(firstZodMessage(checked.error));
 			return;
 		}
 		setInviting(true);
@@ -206,7 +248,7 @@ export default function SettingsPage() {
 		setSuccess(null);
 		try {
 			await inviteUser({
-				email: inviteEmail.trim(),
+				email: checked.data.email,
 				full_name: inviteName.trim() || undefined,
 			});
 			setSuccess(
@@ -219,6 +261,53 @@ export default function SettingsPage() {
 			setError(e instanceof Error ? e.message : "Invite failed");
 		} finally {
 			setInviting(false);
+		}
+	};
+
+	const handleGmailConnect = async () => {
+		setGmailBusy(true);
+		setError(null);
+		setSuccess(null);
+		try {
+			const { authorization_url } = await startGmailOAuth();
+			window.location.href = authorization_url;
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : "Gmail OAuth start failed");
+			setGmailBusy(false);
+		}
+	};
+
+	const handleGmailDisconnect = async () => {
+		setGmailBusy(true);
+		setError(null);
+		setSuccess(null);
+		try {
+			await disconnectGmail();
+			setSuccess("Gmail disconnected.");
+			await fetchGmail();
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : "Disconnect failed");
+		} finally {
+			setGmailBusy(false);
+		}
+	};
+
+	const handleGmailScan = async () => {
+		setGmailBusy(true);
+		setError(null);
+		setSuccess(null);
+		try {
+			const r = await scanGmailInbox();
+			setSuccess(
+				`${r.message || "Scan queued."} Results appear on the Gmail inbox page.`,
+			);
+			window.setTimeout(() => {
+				void fetchGmail();
+			}, 4000);
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : "Scan failed");
+		} finally {
+			setGmailBusy(false);
 		}
 	};
 
@@ -772,6 +861,82 @@ export default function SettingsPage() {
 										</Card>
 									))}
 								</div>
+							)}
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle>Gmail inbox</CardTitle>
+							<CardDescription>
+								Classify mail with Swarms, ingest logs, and run the
+								document pipeline on invoice attachments. Manage
+								everything on the Gmail inbox page.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="flex flex-wrap items-center gap-3">
+								<div className="rounded-lg bg-muted p-2">
+									<Mail className="h-5 w-5" />
+								</div>
+								<div className="flex-1 min-w-[200px]">
+									<p className="text-sm font-medium">
+										{gmailStatus?.connected
+											? `Connected: ${gmailStatus.google_email ?? "Gmail"}`
+											: "Not connected"}
+									</p>
+									{gmailStatus?.last_sync_at && (
+										<p className="text-xs text-muted-foreground">
+											Last scan:{" "}
+											{new Date(
+												gmailStatus.last_sync_at,
+											).toLocaleString()}
+										</p>
+									)}
+								</div>
+								<div className="flex flex-wrap gap-2">
+									<Button asChild variant="default" size="sm">
+										<Link href="/dashboard/gmail">
+											Open Gmail inbox
+										</Link>
+									</Button>
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={gmailBusy}
+										onClick={() => void handleGmailConnect()}
+									>
+										{gmailStatus?.connected
+											? "Reconnect"
+											: "Connect Google"}
+									</Button>
+									<Button
+										size="sm"
+										variant="outline"
+										disabled={
+											gmailBusy || !gmailStatus?.connected
+										}
+										onClick={() => void handleGmailScan()}
+									>
+										Scan now
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
+										disabled={
+											gmailBusy || !gmailStatus?.connected
+										}
+										onClick={() => void handleGmailDisconnect()}
+									>
+										Disconnect
+									</Button>
+								</div>
+							</div>
+
+							{gmailBusy && (
+								<p className="text-sm text-muted-foreground">
+									Working…
+								</p>
 							)}
 						</CardContent>
 					</Card>

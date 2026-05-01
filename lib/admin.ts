@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAccessTokenFromCookie } from "./auth";
+import { formatApiErrorResponse } from "./api-errors";
 
 function authHeaders(): Record<string, string> {
   const token = getAccessTokenFromCookie();
@@ -63,7 +64,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     headers: authHeaders(),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to load stats"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }
 
@@ -74,7 +75,7 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
     headers: authHeaders(),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to load users"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }
 
@@ -93,7 +94,7 @@ export async function updateAdminUser(
     body: JSON.stringify(payload),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Update failed"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }
 
@@ -103,7 +104,7 @@ export async function deactivateAdminUser(userId: string): Promise<void> {
     headers: authHeaders(),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Deactivate failed"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 }
 
 export async function inviteAdminUser(payload: {
@@ -117,7 +118,7 @@ export async function inviteAdminUser(payload: {
     body: JSON.stringify(payload),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Invite failed"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }
 
@@ -128,7 +129,7 @@ export async function getSystemSettings(): Promise<SystemSetting[]> {
     headers: authHeaders(),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to load settings"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   const data = await res.json();
   return data.settings ?? [];
 }
@@ -143,7 +144,7 @@ export async function updateSystemSetting(
     body: JSON.stringify({ value }),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Setting update failed"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }
 
@@ -156,7 +157,7 @@ export async function bulkUpdateSettings(
     body: JSON.stringify({ settings }),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Bulk update failed"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   const data = await res.json();
   return data.settings ?? [];
 }
@@ -177,7 +178,7 @@ export async function getAuditLog(params?: {
     headers: authHeaders(),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to load audit log"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }
 
@@ -195,6 +196,6 @@ export async function getAllSecurityEvents(params?: {
     headers: authHeaders(),
     credentials: "include",
   });
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to load security events"));
+  if (!res.ok) throw new Error(await formatApiErrorResponse(res));
   return res.json();
 }

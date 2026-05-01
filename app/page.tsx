@@ -12,6 +12,15 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { login, register } from "@/lib/auth"
+import { userFacingErrorMessage } from "@/lib/api-errors"
+import {
+  fieldErrorsMap,
+  loginFormSchema,
+  registerFormSchema,
+  type RegisterFormValues,
+} from "@/lib/validation"
+
+type AuthFieldKey = "email" | "password" | "fullName"
 
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true)
@@ -21,21 +30,42 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<AuthFieldKey, string>>
+  >({})
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setFieldErrors({})
+    const schema = isLogin ? loginFormSchema : registerFormSchema
+    const parsed = schema.safeParse({
+      email,
+      password,
+      fullName: fullName.trim() || undefined,
+    })
+    if (!parsed.success) {
+      setFieldErrors(fieldErrorsMap(parsed.error) as Partial<
+        Record<AuthFieldKey, string>
+      >)
+      return
+    }
     setLoading(true)
     try {
       if (isLogin) {
-        await login(email, password)
+        await login(parsed.data.email, parsed.data.password)
       } else {
-        await register(email, password, fullName)
-        await login(email, password)
+        const d = parsed.data as RegisterFormValues
+        await register(
+          d.email,
+          d.password,
+          d.fullName?.trim() || undefined,
+        )
+        await login(d.email, d.password)
       }
       router.push("/dashboard")
-    } catch (err: any) {
-      setError(err?.message || "Authentication failed")
+    } catch (err: unknown) {
+      setError(userFacingErrorMessage(err, "Sign-in failed. Try again."))
     } finally {
       setLoading(false)
     }
@@ -67,7 +97,19 @@ export default function LoginPage() {
               <>
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" name="full_name" placeholder="Enter your full name" type="text" className="bg-input" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                  <Input
+                    id="fullName"
+                    name="full_name"
+                    placeholder="Enter your full name"
+                    type="text"
+                    className="bg-input"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    aria-invalid={!!fieldErrors.fullName}
+                  />
+                  {fieldErrors.fullName && (
+                    <p className="text-sm text-destructive">{fieldErrors.fullName}</p>
+                  )}
                 </div>
               </>
             )}
@@ -81,7 +123,12 @@ export default function LoginPage() {
                 className="bg-input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                aria-invalid={!!fieldErrors.email}
               />
+              {fieldErrors.email && (
+                <p className="text-sm text-destructive">{fieldErrors.email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">{isLogin ? "Password" : "Create Password"}</Label>
@@ -93,7 +140,12 @@ export default function LoginPage() {
                 className="bg-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={isLogin ? "current-password" : "new-password"}
+                aria-invalid={!!fieldErrors.password}
               />
+              {fieldErrors.password && (
+                <p className="text-sm text-destructive">{fieldErrors.password}</p>
+              )}
             </div>
             {isLogin && (
               <div className="text-right">
@@ -110,7 +162,12 @@ export default function LoginPage() {
           <div className="text-center text-sm text-muted-foreground">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              type="button"
+              onClick={() => {
+                setIsLogin(!isLogin)
+                setFieldErrors({})
+                setError(null)
+              }}
               className="text-primary hover:text-primary/80 transition-colors font-medium"
             >
               {isLogin ? "Sign Up" : "Sign In"}

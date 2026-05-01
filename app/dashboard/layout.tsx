@@ -33,6 +33,7 @@ import {
 	User,
 	CreditCard,
 	Building2,
+	Mail,
 	Shield,
 	HelpCircle,
 	LogOut,
@@ -56,6 +57,12 @@ const workspaceItems = [
 		name: "Live pipeline",
 		href: "/dashboard/process-live",
 		icon: Activity,
+		match: "prefix" as const,
+	},
+	{
+		name: "Gmail inbox",
+		href: "/dashboard/gmail",
+		icon: Mail,
 		match: "prefix" as const,
 	},
 	{

@@ -40,6 +40,8 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@vercel/analytics": "latest",
     "autoprefixer": "^10.4.20",
+    "baseline-browser-mapping": "^2.10.25",
+    "caniuse-lite": "^1.0.30001791",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",

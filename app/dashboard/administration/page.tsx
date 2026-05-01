@@ -20,6 +20,7 @@ import {
 	Save, Search, Filter, ChevronLeft, ChevronRight, FileText,
 	Activity, UserCheck, UserX, Lock
 } from "lucide-react"
+import { firstZodMessage, inviteEmailSchema } from "@/lib/validation"
 import {
 	getAdminStats,
 	getAdminUsers,
@@ -132,10 +133,18 @@ function InviteUserModal({
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault()
-		if (!email) return
+		const checked = inviteEmailSchema.safeParse({ email })
+		if (!checked.success) {
+			show("error", firstZodMessage(checked.error))
+			return
+		}
 		setLoading(true)
 		try {
-			await inviteAdminUser({ email, full_name: fullName || undefined, roles: [role] })
+			await inviteAdminUser({
+				email: checked.data.email,
+				full_name: fullName.trim() || undefined,
+				roles: [role],
+			})
 			show("success", `Invitation sent to ${email}`)
 			setEmail("")
 			setFullName("")

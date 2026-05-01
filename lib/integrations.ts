@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "./config";
 import { getAccessTokenFromCookie } from "./auth";
+import { formatApiErrorResponse } from "./api-errors";
 
 function authHeaders(): Record<string, string> {
 	const token = getAccessTokenFromCookie();
@@ -24,10 +25,7 @@ export async function getIntegrations(): Promise<{
 		headers: { ...authHeaders() },
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(
-			await res.text().catch(() => "Failed to load integrations"),
-		);
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }
 
@@ -40,7 +38,6 @@ export async function setERPType(
 		body: JSON.stringify({ type }),
 		credentials: "include",
 	});
-	if (!res.ok)
-		throw new Error(await res.text().catch(() => "Failed to set ERP"));
+	if (!res.ok) throw new Error(await formatApiErrorResponse(res));
 	return res.json();
 }

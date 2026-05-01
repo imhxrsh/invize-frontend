@@ -43,34 +43,13 @@ import {
 	type DocumentResultResponse,
 } from "@/lib/documents";
 import { parseApiErrorText } from "@/lib/api-errors";
+import { parseAgentAnalysisResultText } from "@/lib/agent-analysis";
 import {
 	LIVE_PIPELINE_STEPS,
 	resolveLivePipelineStep,
 } from "@/lib/pipeline-live";
 
 const POLL_MS = 1200;
-
-function tryParseAgentStructured(resultText: string | undefined): {
-	summary?: string;
-	flags?: string[];
-	recommendations?: string[];
-} {
-	if (!resultText || typeof resultText !== "string") return {};
-	const t = resultText.trim();
-	if (!t.startsWith("{")) return {};
-	try {
-		const o = JSON.parse(t) as Record<string, unknown>;
-		return {
-			summary: typeof o.summary === "string" ? o.summary : undefined,
-			flags: Array.isArray(o.flags) ? o.flags.map(String) : undefined,
-			recommendations: Array.isArray(o.recommendations)
-				? o.recommendations.map(String)
-				: undefined,
-		};
-	} catch {
-		return {};
-	}
-}
 
 function StepRow({
 	index,
@@ -153,9 +132,12 @@ function JsonScroll({ data }: { data: unknown }) {
 
 function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 	const aa = result.agent_analysis;
-	const parsed = tryParseAgentStructured(
+	const parsed = parseAgentAnalysisResultText(
 		typeof aa?.result === "string" ? aa.result : undefined,
 	);
+	const analysisParseUntrusted =
+		(aa as { parse_ok?: boolean } | null)?.parse_ok === false ||
+		parsed.parse_ok === false;
 	const verification = result.verification_compliance;
 	const matching = result.matching_erp;
 	const workflow = result.operations_workflow;
@@ -409,8 +391,35 @@ function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 									<span>Runtime: {Number(aa.execution_time).toFixed(2)}s</span>
 								)}
 							</div>
-							{(parsed.summary || parsed.flags?.length || parsed.recommendations?.length) && (
+							{analysisParseUntrusted && (
+								<p className="rounded-md border border-amber-200 bg-amber-50/90 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+									Structured AI analysis was not fully verified. Rely on extracted
+									fields and the uploaded file for facts.
+								</p>
+							)}
+							{(parsed.summary ||
+								parsed.flags?.length ||
+								parsed.recommendations?.length ||
+								parsed.supplier_guess !== undefined ||
+								parsed.buyer_guess !== undefined) && (
 								<div className="rounded-md border bg-muted/40 p-4 space-y-2 text-sm">
+									{(parsed.supplier_guess !== undefined ||
+										parsed.buyer_guess !== undefined) && (
+										<div className="grid gap-1 sm:grid-cols-2">
+											{parsed.supplier_guess !== undefined && (
+												<p>
+													<span className="font-medium">Vendor (AI): </span>
+													{parsed.supplier_guess ?? "—"}
+												</p>
+											)}
+											{parsed.buyer_guess !== undefined && (
+												<p>
+													<span className="font-medium">Buyer (AI): </span>
+													{parsed.buyer_guess ?? "—"}
+												</p>
+											)}
+										</div>
+									)}
 									{parsed.summary && <p><span className="font-medium">Summary: </span>{parsed.summary}</p>}
 									{parsed.flags && parsed.flags.length > 0 && (
 										<p><span className="font-medium">Flags: </span>{parsed.flags.join(", ")}</p>
@@ -425,7 +434,13 @@ function InsightsPanel({ result }: { result: DocumentResultResponse }) {
 								</div>
 							)}
 							{aa.result != null &&
-								!(parsed.summary || parsed.flags?.length || parsed.recommendations?.length) && (
+								!(
+									parsed.summary ||
+									parsed.flags?.length ||
+									parsed.recommendations?.length ||
+									parsed.supplier_guess !== undefined ||
+									parsed.buyer_guess !== undefined
+								) && (
 									<ScrollArea className="h-40 rounded-md border bg-muted/40">
 										<pre className="p-3 text-xs whitespace-pre-wrap">{String(aa.result)}</pre>
 									</ScrollArea>

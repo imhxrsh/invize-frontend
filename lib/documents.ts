@@ -57,6 +57,10 @@ export interface AgentAnalysisBlock {
 	summary?: string;
 	flags?: string[];
 	recommendations?: string[];
+	supplier_guess?: string | null;
+	buyer_guess?: string | null;
+	/** Set when backend normalizes Swarms output; false = use extracted fields only for facts. */
+	parse_ok?: boolean;
 	[key: string]: unknown;
 }
 
