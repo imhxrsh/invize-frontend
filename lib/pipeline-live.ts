@@ -38,6 +38,13 @@ export const LIVE_PIPELINE_STEPS: LivePipelineStep[] = [
 		matchers: ["extracting fields"],
 	},
 	{
+		id: "vision",
+		title: "Reading layout (AI vision)",
+		subtitle:
+			"A vision model reads the document image for totals, GST, and line items (PDFs are rasterized first).",
+		matchers: ["groq vision"],
+	},
+	{
 		id: "validate",
 		title: "Double-checking",
 		subtitle: "Normalizing and validating what was read.",

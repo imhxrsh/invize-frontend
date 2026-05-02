@@ -183,6 +183,7 @@ export default function InvoiceDetailPage() {
 							status: statusRes.status,
 							error: statusRes.error,
 							progress: statusRes.progress,
+							progress_history: statusRes.progress_history,
 						});
 						setLoading(false);
 						await sleep(2000);
@@ -193,6 +194,8 @@ export default function InvoiceDetailPage() {
 							job_id: jobId,
 							status: "failed",
 							error: statusRes.error ?? "Processing failed",
+							progress: statusRes.progress,
+							progress_history: statusRes.progress_history,
 						});
 						setLoading(false);
 						return;
@@ -351,20 +354,37 @@ export default function InvoiceDetailPage() {
 			{(result?.status === "pending" ||
 				result?.status === "processing") && (
 				<Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-					<CardContent className="pt-6">
+					<CardContent className="pt-6 space-y-3">
 						<div className="flex items-center gap-3">
 							<Loader2 className="h-5 w-5 animate-spin text-amber-600" />
-							<div>
+							<div className="min-w-0 flex-1">
 								<p className="font-medium">Processing…</p>
-								<p className="text-sm text-muted-foreground">
+								<p className="text-sm text-muted-foreground break-words">
 									{result.progress?.trim()
 										? result.progress
 										: result.status === "pending"
 											? "Queued"
-											: "OCR, extraction, verification and matching in progress."}
+											: "OCR, vision extraction, verification and matching in progress."}
 								</p>
 							</div>
 						</div>
+						{Array.isArray(result.progress_history) &&
+							result.progress_history.length > 0 && (
+								<div className="border-t border-amber-200/60 dark:border-amber-800/40 pt-3">
+									<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+										Recent steps
+									</p>
+									<ol className="text-xs text-muted-foreground space-y-1 max-h-40 overflow-y-auto list-decimal list-inside">
+										{result.progress_history
+											.slice(-12)
+											.map((line, i) => (
+												<li key={`${i}-${line.slice(0, 24)}`} className="break-words">
+													{line}
+												</li>
+											))}
+									</ol>
+								</div>
+							)}
 					</CardContent>
 				</Card>
 			)}
@@ -418,7 +438,29 @@ export default function InvoiceDetailPage() {
 						{/* Center: Extracted data + Approve/Reject */}
 						<Card className="lg:col-span-4">
 							<CardHeader className="flex flex-row items-center justify-between space-y-0">
-								<CardTitle>Extracted data</CardTitle>
+								<div className="space-y-2">
+									<CardTitle>Extracted data</CardTitle>
+									{result.pipeline_meta && (
+										<div className="flex flex-wrap gap-1.5">
+											{result.pipeline_meta.groq_vision ? (
+												<Badge
+													variant="secondary"
+													className="text-xs font-normal"
+												>
+													Vision parse
+												</Badge>
+											) : null}
+											{result.pipeline_meta.groq_text_enrich ? (
+												<Badge
+													variant="outline"
+													className="text-xs font-normal"
+												>
+													Text enrich
+												</Badge>
+											) : null}
+										</div>
+									)}
+								</div>
 								{result.status === "completed" &&
 									workflow?.approval_summary?.status ===
 										"pending" && (
@@ -466,6 +508,24 @@ export default function InvoiceDetailPage() {
 												className="bg-muted"
 											/>
 										</div>
+										{(ext.buyer != null && String(ext.buyer).trim() !== "") ||
+										(ext.bill_to != null &&
+											String(ext.bill_to).trim() !== "") ? (
+											<div className="space-y-2">
+												<Label>Buyer / Bill to</Label>
+												<Input
+													value={
+														(typeof ext.buyer === "string" &&
+															ext.buyer.trim()) ||
+														(typeof ext.bill_to === "string" &&
+															ext.bill_to.trim()) ||
+														""
+													}
+													readOnly
+													className="bg-muted"
+												/>
+											</div>
+										) : null}
 										<div className="space-y-2">
 											<Label>Invoice number</Label>
 											<Input
@@ -482,6 +542,48 @@ export default function InvoiceDetailPage() {
 												className="bg-muted"
 											/>
 										</div>
+										{(ext.subtotal != null &&
+											!Number.isNaN(Number(ext.subtotal))) ||
+										(ext.tax != null && !Number.isNaN(Number(ext.tax))) ? (
+											<div className="grid grid-cols-2 gap-3">
+												<div className="space-y-2">
+													<Label>Subtotal (pre-tax)</Label>
+													<Input
+														value={
+															ext.subtotal != null
+																? formatDocumentCurrency(
+																		Number(ext.subtotal),
+																		typeof ext.currency === "string"
+																			? ext.currency
+																			: null,
+																		{ maximumFractionDigits: 2 },
+																	)
+																: "—"
+														}
+														readOnly
+														className="bg-muted"
+													/>
+												</div>
+												<div className="space-y-2">
+													<Label>Tax</Label>
+													<Input
+														value={
+															ext.tax != null
+																? formatDocumentCurrency(
+																		Number(ext.tax),
+																		typeof ext.currency === "string"
+																			? ext.currency
+																			: null,
+																		{ maximumFractionDigits: 2 },
+																	)
+																: "—"
+														}
+														readOnly
+														className="bg-muted"
+													/>
+												</div>
+											</div>
+										) : null}
 										<div className="space-y-2">
 											<Label>Total</Label>
 											<Input
@@ -500,6 +602,67 @@ export default function InvoiceDetailPage() {
 												className="bg-muted"
 											/>
 										</div>
+										{Array.isArray(ext.line_items) &&
+											ext.line_items.length > 0 && (
+												<div className="space-y-2 pt-2">
+													<Label>Line items</Label>
+													<div className="rounded-md border max-h-56 overflow-auto text-xs">
+														<table className="w-full border-collapse">
+															<thead>
+																<tr className="bg-muted/80 text-left border-b">
+																	<th className="p-2 font-medium">Description</th>
+																	<th className="p-2 font-medium w-12">Qty</th>
+																	<th className="p-2 font-medium w-20">Rate</th>
+																	<th className="p-2 font-medium w-20">Amount</th>
+																</tr>
+															</thead>
+															<tbody>
+																{ext.line_items.map((row, idx) => (
+																	<tr
+																		key={idx}
+																		className="border-b border-muted last:border-0"
+																	>
+																		<td className="p-2 align-top break-words">
+																			{row.description ?? "—"}
+																			{row.item_code != null &&
+																			String(row.item_code).trim() !== "" ? (
+																				<span className="block text-muted-foreground">
+																					HSN/SAC: {String(row.item_code)}
+																				</span>
+																			) : null}
+																		</td>
+																		<td className="p-2 align-top tabular-nums">
+																			{row.quantity ?? "—"}
+																		</td>
+																		<td className="p-2 align-top tabular-nums">
+																			{row.unit_price != null
+																				? formatDocumentCurrency(
+																						Number(row.unit_price),
+																						typeof ext.currency === "string"
+																							? ext.currency
+																							: null,
+																						{ maximumFractionDigits: 2 },
+																					)
+																				: "—"}
+																		</td>
+																		<td className="p-2 align-top tabular-nums">
+																			{row.amount != null
+																				? formatDocumentCurrency(
+																						Number(row.amount),
+																						typeof ext.currency === "string"
+																							? ext.currency
+																							: null,
+																						{ maximumFractionDigits: 2 },
+																					)
+																				: "—"}
+																		</td>
+																	</tr>
+																))}
+															</tbody>
+														</table>
+													</div>
+												</div>
+											)}
 										{result.processing_time != null && (
 											<p className="text-xs text-muted-foreground">
 												Processed in{" "}

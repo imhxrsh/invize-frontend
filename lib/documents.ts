@@ -71,12 +71,33 @@ export interface DocumentResultResponse {
 	status: DocumentStatus;
 	/** Shown while job is pending/processing (from status poll). */
 	progress?: string;
+	/** Backend step log; also echoed on GET /result when completed for timeline UIs. */
+	progress_history?: string[];
+	/** How fields were produced (e.g. Groq vision). */
+	pipeline_meta?: {
+		groq_vision?: boolean;
+		groq_text_enrich?: boolean;
+		[key: string]: unknown;
+	};
 	document_type?: string;
 	extracted_data?: {
 		supplier?: string;
+		buyer?: string;
+		bill_to?: string;
 		invoice_number?: string;
 		date?: string;
+		currency?: string;
+		subtotal?: number;
+		tax?: number;
 		total?: number;
+		line_items?: Array<{
+			description?: string;
+			quantity?: number;
+			unit_price?: number;
+			amount?: number;
+			item_code?: string;
+			[key: string]: unknown;
+		}>;
 		[key: string]: unknown;
 	};
 	processing_time?: number;
